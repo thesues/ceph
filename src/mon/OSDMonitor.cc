@@ -5440,7 +5440,10 @@ done:
       }
     }
     // go
-    pending_inc.get_new_pool(pool_id, p)->cache_mode = mode;
+    pg_pool_t *np = pending_inc.get_new_pool(pool_id, p);
+    np->cache_mode = mode;
+    if (mode == pg_pool_t::CACHEMODE_NONE)
+      np->flags |= pg_pool_t::FLAG_INCOMPLETE_CLONES;
     ss << "set cache-mode for pool '" << poolstr
 	<< "' to " << pg_pool_t::get_cache_mode_name(mode);
     wait_for_finished_proposal(new Monitor::C_Command(mon, m, 0, ss.str(),
