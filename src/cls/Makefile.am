@@ -57,7 +57,20 @@ libcls_rgw_la_LIBADD = libjson_spirit.la $(PTHREAD_LIBS) $(EXTRALIBS)
 libcls_rgw_la_LDFLAGS = ${AM_LDFLAGS} -module -avoid-version -shared -export-symbols-regex '.*__cls_.*'
 radoslib_LTLIBRARIES += libcls_rgw.la
 
+libcls_stripesha1_la_SOURCES = cls/stripesha1/cls_stripesha1.cc
+libcls_stripesha1_la_LIBADD = -lcrypto $(PTHREAD_LIBS) $(EXTRALIBS)
+libcls_stripesha1_la_LDFLAGS = ${AM_LDFLAGS} -module -avoid-version -shared -export-symbols-regex '.*__cls_.*'
+radoslib_LTLIBRARIES += libcls_stripesha1.la
+
 ## Rados object client classes
+# for cgo 
+#
+libcls_stripesha1_client_la_SOURCES = cls/stripesha1/cls_stripesha1_client.cc
+lib_LTLIBRARIES += libcls_stripesha1_client.la
+libcls_stripesha1_client_includedir = $(includedir)/radosstriper
+libcls_stripesha1_client_include_DATA = cls/stripesha1/cls_stripesha1_client.h
+
+
 
 libcls_lock_client_la_SOURCES = \
 	cls/lock/cls_lock_client.cc \

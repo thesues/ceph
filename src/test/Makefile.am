@@ -738,6 +738,15 @@ ceph_test_cls_rgw_opstate_CXXFLAGS = $(UNITTEST_CXXFLAGS)
 bin_DEBUGPROGRAMS += ceph_test_cls_rgw_opstate
 endif # WITH_RADOSGW
 
+ceph_test_cls_stripesha1_SOURCES = test/cls_stripesha1/test_cls_stripesha1.cc
+ceph_test_cls_stripesha1_LDADD = \
+	-lcrypto $(LIBRADOSSTRIPER) $(LIBRADOS) $(LIBRGW) $(CEPH_GLOBAL) \
+	$(UNITTEST_LDADD) $(CRYPTO_LIBS) \
+	libcls_stripesha1_client.la \
+	$(LIBRADOS) $(RADOS_TEST_LDADD)
+ceph_test_cls_stripesha1_CXXFLAGS = $(UNITTEST_CXXFLAGS)
+bin_DEBUGPROGRAMS += ceph_test_cls_stripesha1
+
 libradostest_la_SOURCES = \
 	test/librados/test.cc \
 	test/librados/TestCase.cc
