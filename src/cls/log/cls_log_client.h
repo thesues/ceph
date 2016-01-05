@@ -29,4 +29,17 @@ int cls_log_trim(librados::IoCtx& io_ctx, const string& oid, const utime_t& from
 
 void cls_log_info(librados::ObjectReadOperation& op, cls_log_header *header);
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void c_cls_log_add(rados_ioctx_t io, const char * oid, time_t timestamp, const char * section, const char * name);
+
+void c_cls_log_list(rados_ioctx_t io, const char *oid, time_t from, time_t to, const char * in_marker, char ** out_marker,int max_entries, bool *truncated, char ** p_buf);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

@@ -332,3 +332,29 @@ TEST(cls_rgw, test_log_trim)
   }
   delete rop;
 }
+
+TEST(cls_log, test_c_log_add){
+  rados_t cluster;
+  rados_ioctx_t ioctx;
+  std::string pool_name = get_temp_pool_name();
+  ASSERT_EQ("", create_one_pool(pool_name, &cluster));
+  rados_ioctx_create(cluster, pool_name.c_str(), &ioctx);
+  //content
+  time_t now;
+  time(&now);
+  c_cls_log_add(ioctx, "oid", now, "ADD",   "filename1");
+  c_cls_log_add(ioctx, "oid", now+1, "ADD", "filename2");
+  c_cls_log_add(ioctx, "oid", now+2, "ADD", "filename3");
+  //list all
+  bool truncated;
+  char * buf;
+  char * marker;
+  c_cls_log_list(ioctx, "oid", 0, 0, "", &marker, 2, &truncated, &buf);
+  printf("truncated?%d\n", truncated);
+  printf("%s\n",buf);
+  free(buf);
+  printf("out marker %s\n", marker); 
+  free(marker);
+  rados_ioctx_destroy(ioctx);
+  ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
+}

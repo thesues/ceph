@@ -4,6 +4,7 @@
 #include "cls/log/cls_log_ops.h"
 #include "include/rados/librados.hpp"
 #include "include/compat.h"
+#include "common/Formatter.h"
 
 
 using namespace librados;
@@ -151,5 +152,55 @@ void cls_log_info(librados::ObjectReadOperation& op, cls_log_header *header)
   ::encode(call, inbl);
 
   op.exec("log", "info", inbl, new LogInfoCtx(header));
+}
+
+extern "C" void c_cls_log_add(rados_ioctx_t io, const char * oid, time_t timestamp, const char * section, const char * name) {
+    librados::IoCtx ctx;
+    librados::IoCtx::from_rados_ioctx_t(io, ctx);
+    librados::ObjectWriteOperation op; 
+    bufferlist bl; 
+    //bl.append(name, strlen(name));
+    //section and name is enough
+    utime_t now(timestamp,0);
+    cls_log_add(op, now, section, name, bl);
+    string soid(oid);
+    ctx.operate(soid, &op);
+}
+
+extern "C" void c_cls_log_list(rados_ioctx_t io, const char *oid, time_t from, time_t to, const char * in_marker, char ** out_marker,int max_entries, bool *truncated, char ** p_buf) {
+    librados::IoCtx ctx;
+    librados::IoCtx::from_rados_ioctx_t(io, ctx);
+    librados::ObjectReadOperation rop; 
+    string s_in_marker(in_marker);
+    string s_out_marker;
+    list<cls_log_entry> entries;
+    utime_t from_time(from, 0);
+    utime_t to_time(to, 0);
+    cls_log_list(rop, from_time, to_time, s_in_marker, max_entries, entries, &s_out_marker, truncated);
+
+    ctx.operate(oid, &rop, NULL);
+
+    JSONFormatter f(false);
+
+    ostringstream oss;
+
+    //dump data to json
+    f.open_array_section("entries");
+    for (list<cls_log_entry>::iterator iter = entries.begin(); iter != entries.end(); ++iter) {
+      cls_log_entry& entry = *iter;
+      f.open_object_section("entry");
+      f.dump_string("id", entry.id);
+      f.dump_string("section", entry.section);
+      f.dump_string("name", entry.name);
+      f.close_section();
+    }
+    f.close_section();
+
+    f.flush(oss);
+    std::string s = oss.str();
+    *p_buf = (char*)malloc(s.length());
+    strcpy(*p_buf, s.c_str());
+    *out_marker = (char*)malloc(s_out_marker.length());
+    strcpy(*out_marker, s_out_marker.c_str());
 }
 
