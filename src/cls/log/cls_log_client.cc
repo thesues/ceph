@@ -168,6 +168,7 @@ extern "C" void c_cls_log_add(rados_ioctx_t io, const char * oid, time_t timesta
 }
 
 extern "C" void c_cls_log_list(rados_ioctx_t io, const char *oid, time_t from, time_t to, const char * in_marker, char ** out_marker,int max_entries, bool *truncated, char ** p_buf) {
+
     librados::IoCtx ctx;
     librados::IoCtx::from_rados_ioctx_t(io, ctx);
     librados::ObjectReadOperation rop; 
@@ -178,7 +179,9 @@ extern "C" void c_cls_log_list(rados_ioctx_t io, const char *oid, time_t from, t
     utime_t to_time(to, 0);
     cls_log_list(rop, from_time, to_time, s_in_marker, max_entries, entries, &s_out_marker, truncated);
 
-    ctx.operate(oid, &rop, NULL);
+    int ret = ctx.operate(oid, &rop, NULL);
+    if (ret) 
+      return;
 
     JSONFormatter f(false);
 
@@ -187,20 +190,26 @@ extern "C" void c_cls_log_list(rados_ioctx_t io, const char *oid, time_t from, t
     //dump data to json
     f.open_array_section("entries");
     for (list<cls_log_entry>::iterator iter = entries.begin(); iter != entries.end(); ++iter) {
-      cls_log_entry& entry = *iter;
-      f.open_object_section("entry");
-      f.dump_string("id", entry.id);
-      f.dump_string("section", entry.section);
-      f.dump_string("name", entry.name);
-      f.close_section();
+        cls_log_entry& entry = *iter;
+        f.open_object_section("entry");
+        f.dump_string("id", entry.id);
+        f.dump_string("section", entry.section);
+        f.dump_string("name", entry.name);
+        f.close_section();
     }
     f.close_section();
 
     f.flush(oss);
+
     std::string s = oss.str();
-    *p_buf = (char*)malloc(s.length());
-    strcpy(*p_buf, s.c_str());
-    *out_marker = (char*)malloc(s_out_marker.length());
-    strcpy(*out_marker, s_out_marker.c_str());
+
+    if (p_buf != NULL) {
+        *p_buf = (char*)calloc(s.length() + 1, sizeof(char));
+        strncpy(*p_buf, s.c_str(), s.length());
+    }
+    if (out_marker != NULL) {
+        *out_marker = (char*)calloc(s_out_marker.length() + 1 , sizeof(char));
+        strncpy(*out_marker, s_out_marker.c_str(),s.length());
+    }
 }
 

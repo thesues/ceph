@@ -349,12 +349,18 @@ TEST(cls_log, test_c_log_add){
   bool truncated;
   char * buf;
   char * marker;
-  c_cls_log_list(ioctx, "oid", 0, 0, "", &marker, 2, &truncated, &buf);
+  //marker is 0
+  c_cls_log_list(ioctx, "oid", 0, 0, "", 0, 4, &truncated, &buf);
   printf("truncated?%d\n", truncated);
+  if (buf != NULL) {
   printf("%s\n",buf);
   free(buf);
+  }
+  if (marker != NULL) {
   printf("out marker %s\n", marker); 
   free(marker);
+  }
+
   rados_ioctx_destroy(ioctx);
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
