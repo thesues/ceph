@@ -1,5 +1,14 @@
 ## Rados object client classes
 
+
+# for cgo 
+#
+libcls_stripesha1_client_la_SOURCES = cls/stripesha1/cls_stripesha1_client.cc
+lib_LTLIBRARIES += libcls_stripesha1_client.la
+libcls_stripesha1_client_includedir = $(includedir)/radosstriper
+libcls_stripesha1_client_include_DATA = cls/stripesha1/cls_stripesha1_client.h
+
+
 libcls_lock_client_la_SOURCES = \
 	cls/lock/cls_lock_client.cc \
 	cls/lock/cls_lock_types.cc \

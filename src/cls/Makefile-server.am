@@ -69,6 +69,13 @@ libcls_rgw_la_LIBADD = libjson_spirit.la $(PTHREAD_LIBS) $(EXTRALIBS)
 libcls_rgw_la_LDFLAGS = ${AM_LDFLAGS} -module -avoid-version -shared -export-symbols-regex '.*__cls_.*'
 radoslib_LTLIBRARIES += libcls_rgw.la
 
+
+libcls_stripesha1_la_SOURCES = cls/stripesha1/cls_stripesha1.cc
+libcls_stripesha1_la_LIBADD = -lcrypto $(PTHREAD_LIBS) $(EXTRALIBS)
+libcls_stripesha1_la_LDFLAGS = ${AM_LDFLAGS} -module -avoid-version -shared -export-symbols-regex '.*__cls_.*'
+radoslib_LTLIBRARIES += libcls_stripesha1.la
+
+
 libcls_cephfs_la_SOURCES = cls/cephfs/cls_cephfs.cc
 libcls_cephfs_la_LIBADD = $(PTHREAD_LIBS) $(EXTRALIBS)
 libcls_cephfs_la_LDFLAGS = ${AM_LDFLAGS} -module -avoid-version -shared -export-symbols-regex '.*__cls_.*'

@@ -34,6 +34,11 @@ static int cls_stripesha1_get(cls_method_context_t hctx, bufferlist *in, bufferl
 		return -ENOENT;
 	}
 
+
+	if (op.stripe_unit <= 0 || op.stripe_count <=0) {
+		return -EINVAL;
+	}
+
 	bufferlist data;
 
 	int num_stripe_per_active_set = (op.object_size / op.stripe_unit ) * op.stripe_count;

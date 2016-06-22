@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-int cls_client_stripesha1_get(rados_ioctx_t io, const char * oid, char ** buf, int * buflen, uint64_t *piece_length, uint64_t * length);
+int cls_client_stripesha1_get(rados_ioctx_t io, const char * oid, unsigned int throttle, char ** buf, int * buflen, uint64_t *piece_length, uint64_t * length);
 
 #ifdef __cplusplus 
 }

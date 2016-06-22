@@ -5,6 +5,7 @@
 #include "librados/IoCtxImpl.h"
 #include "librados/RadosClient.h"
 #include <sstream>
+#include <queue>
 
 //this is C API for gobinding
 //
@@ -16,29 +17,76 @@ static std::string  getObjectId(const char * oid, long long unsigned objectno) {
 } 
 
 //send struct stripe_parameters to cls and merge output into sha1map
-static int send_cls_stripe_request(librados::IoCtxImpl *ctx, struct stripe_parameters &call, const std::string &objname, std::map<int, bufferlist> &sha1map) {
+static int send_cls_stripe_request(librados::IoCtxImpl *ctx, stripe_parameters &call, const std::string &objname, librados::AioCompletion *c, bufferlist * out) {
 
-	bufferlist in, out;
+	bufferlist in;
 
 	::encode(call, in);
 
-	int ret = ctx->exec(getObjectId(objname.c_str(), call.num), "stripesha1", "get_sha1", in, out);
-	if (ret < 0) {
+	return ctx->aio_exec(getObjectId(objname.c_str(), call.num), c->pc, "stripesha1", "get_sha1", in, out);
+}
+
+struct GetSHA1Data {
+	bufferlist *out;
+	librados::AioCompletion *c;
+};
+
+//cdata
+struct AioManager {
+	std::map<int, bufferlist> *pSha1map;
+	std::queue<GetSHA1Data> pending_list;
+
+	void append(GetSHA1Data & d) {
+		pending_list.push(d);
+	}
+	
+	bool pending_has_completed() {
+		if (pending_list.size()== 0)
+			return false;
+		GetSHA1Data & front = pending_list.front();
+		if (front.c->is_complete() == 0)
+			return false;
+		else
+			return true;
+
+	}
+
+	int wait_pending_front() {
+		/* this is called after making sure pending_list[0] exists */
+		GetSHA1Data front = pending_list.front();
+		pending_list.pop();
+		front.c->wait_for_complete();
+		int ret = front.c->get_return_value();
+		if (ret >= 0) {
+			struct stripe_sha1 output;
+			bufferlist::iterator iter = front.out->begin();
+			try {
+				::decode(output, iter);
+			} catch (buffer::error &err) {
+				delete front.out;
+				return -EIO;
+			}
+			//put this into callback functions
+			pSha1map->insert(output.sha1_map.begin(), output.sha1_map.end());
+			delete front.out;
+		}
+		front.c->release();
 		return ret;
 	}
 
-	struct stripe_sha1 output;
-	bufferlist::iterator iter = out.begin();
-	try {
-		::decode(output, iter);
-	} catch (buffer::error &err) {
-		return -EIO;
+	/* this function may block */
+	int drain_pending() {
+		int ret = 0;
+		while (pending_list.size() > 0) {
+			ret = wait_pending_front();
+		}
+		return ret;
 	}
-	sha1map.insert(output.sha1_map.begin(), output.sha1_map.end());
-	return ret;
-}
+};
 
-extern "C" int cls_client_stripesha1_get(rados_ioctx_t io, const char * oid, char ** buf, int * buflen, uint64_t *piece_length, uint64_t *length)
+
+
+extern "C" int cls_client_stripesha1_get(rados_ioctx_t io, const char * oid, unsigned int throttle, char ** buf, int * buflen, uint64_t *piece_length, uint64_t *length)
 {
 
 	int ret;
@@ -90,12 +138,46 @@ extern "C" int cls_client_stripesha1_get(rados_ioctx_t io, const char * oid, cha
 	call.object_size = object_size;
 	call.num = 0;
 
+
 	std::map<int, bufferlist> sha1map;
+
+	AioManager m;
+	m.pSha1map = &sha1map;
 	for(unsigned int i = 0; i < nb_objects; i ++) {
+
 		call.num = i;
-		if ((ret = send_cls_stripe_request(ctx, call, oid, sha1map)) < 0) {
+
+		bufferlist *pbl = new bufferlist; 
+		librados::AioCompletion *c  = librados::Rados::aio_create_completion();
+
+		if ((ret = send_cls_stripe_request(ctx, call, oid, c, pbl)) < 0) {
+			c->release();
+			m.drain_pending();
 			return ret;
 		}
+
+		m.pending_list.push(GetSHA1Data{pbl,c});
+
+
+		/* process all completed task from top to bottom */
+		while (m.pending_has_completed()) {
+			if ((ret = m.wait_pending_front()) < 0) {
+				m.drain_pending();
+				return ret;
+			}
+		}
+
+		if (m.pending_list.size() > throttle) {
+			if ((ret = m.wait_pending_front()) < 0) {
+				m.drain_pending();
+				return ret;
+			}
+		}
+
+	}
+
+	if ((ret = m.drain_pending()) < 0) {
+		return -EIO;
 	}
 
 	//put all bufferlist into one, and check every stripe_unit

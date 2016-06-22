@@ -12,12 +12,41 @@
 #include "cls/stripesha1/cls_stripesha1_ops.h"
 #include <sstream>
 #include <openssl/sha.h>
+#include <common/Clock.h>
 
 using namespace librados;
 using namespace libradosstriper;
 
 
 static const char hexchars[] = "0123456789abcdef";
+
+
+static bufferlist content;
+static int throttle = 4;
+
+int main(int argc, char ** argv) {
+	/* ./ceph_test_cls_stripesha1 --gtest_filter=cls_stripesha1.getstripesha1_client /home/zhangdongmao/Application-Software-Configuration-Using-Heat.mp4 */
+	::testing::InitGoogleTest(&argc, argv);
+	if (argc > 1) {
+		std::string err;
+		int ret = content.read_file((char*)argv[1], &err);
+		std::cout << ret << std::endl;
+		if (ret < 0) {
+			std::cerr << err << std::endl;
+			return -1;
+		}
+
+		//it has a throttle, default is 4
+		if (argc == 3) {
+			throttle = atoi(argv[2]);
+		}
+
+	} else {
+		std::cerr << "must have a file to be uploaded" << std::endl;
+		return -1;
+	}
+	RUN_ALL_TESTS();
+}
 
 std::string bin_to_hex(const bufferlist & bl) {
         std::string result;
@@ -34,6 +63,21 @@ std::string bin_to_hex(const bufferlist & bl) {
 	return result;
 }
 
+static void calcuate_striped_sha1sum(bufferlist &input, uint32_t unit, bufferlist &output) {
+
+	uint32_t offset = 0;
+	uint32_t size = input.length();
+	uint32_t len = 0;
+	SHA_CTX c;
+	char sha1[SHA_DIGEST_LENGTH];
+	for(; offset < size; offset += unit) {
+		len = std::min(size - offset, unit);
+		SHA1_Init(&c);
+		SHA1_Update(&c, input.c_str() + offset, len);
+		SHA1_Final((unsigned char*)sha1, &c);
+		output.append(sha1, SHA_DIGEST_LENGTH);
+	}
+}
 
 TEST(cls_stripesha1, getstripesha1) {
 	int ret;
@@ -117,15 +161,15 @@ TEST(cls_stripesha1, writestripe_getstripe) {
 	cluster.ioctx_create(pool_name.c_str(), ioctx);
 
 	bufferlist in, out;
-	bufferlist content;
-	ASSERT_EQ(0, content.read_file("/home/zhangdongmao/upstream/ceph/src/testfile",NULL));
-
-
 
 
 	int settings_stripe_unit = 512 << 10;
 	int settings_stripe_count = 4;
-	int settings_object_size = 4 << 20;
+	int settings_object_size = 16 << 20;
+
+	bufferlist sha1_output;
+	//caculate local file's sha1sum
+	calcuate_striped_sha1sum(content, settings_stripe_unit, sha1_output);
 
 	RadosStriper striper;
 	RadosStriper::striper_create(ioctx, &striper);
@@ -169,6 +213,7 @@ TEST(cls_stripesha1, writestripe_getstripe) {
 
 	std::cout <<  "nb_objects :" << nb_objects << std::endl;
 
+	utime_t now = ceph_clock_now(NULL);
 	std::map<int, bufferlist> sha1map;
 	for(int i = 0; i < nb_objects; i ++) {
 		if (send_request(ioctx, call, objname, sha1map) < 0) {
@@ -177,6 +222,7 @@ TEST(cls_stripesha1, writestripe_getstripe) {
 		}
 		call.num += 1;
 	}
+	std::cout << "escapsed time:" << ceph_clock_now(NULL) - now << std::endl;
 
 	std::map<int, bufferlist>::iterator iter = sha1map.begin();
 
@@ -187,24 +233,11 @@ TEST(cls_stripesha1, writestripe_getstripe) {
 }
 
 
-static void calcuate_striped_sha1sum(bufferlist &input, uint32_t unit, bufferlist &output) {
-
-	uint32_t offset = 0;
-	uint32_t size = input.length();
-	uint32_t len = 0;
-	SHA_CTX c;
-	char sha1[SHA_DIGEST_LENGTH];
-	for(; offset < size; offset += unit) {
-		len = std::min(size - offset, unit);
-		SHA1_Init(&c);
-		SHA1_Update(&c, input.c_str() + offset, len);
-		SHA1_Final((unsigned char*)sha1, &c);
-		output.append(sha1, SHA_DIGEST_LENGTH);
-	}
-}
 
 //test C API
 TEST(cls_stripesha1, getstripesha1_client) {
+
+
 	int ret;
 	rados_t cluster;
 	std::string pool_name = get_temp_pool_name();
@@ -214,7 +247,7 @@ TEST(cls_stripesha1, getstripesha1_client) {
 	rados_ioctx_create(cluster, pool_name.c_str(), &ioctx);
 
 
-	int settings_stripe_unit = 1 << 20;
+	int settings_stripe_unit = 512 << 10;
 	int settings_stripe_count = 8;
 	int settings_object_size = 4 << 20;
 
@@ -223,10 +256,6 @@ TEST(cls_stripesha1, getstripesha1_client) {
 	rados_striper_set_object_layout_stripe_unit(striper, settings_stripe_unit);
 	rados_striper_set_object_layout_object_size(striper, settings_object_size);
 	rados_striper_set_object_layout_stripe_count(striper, settings_stripe_count);
-
-
-	bufferlist content;
-	ASSERT_EQ(0, content.read_file("/home/zhangdongmao/upstream/ceph/src/testfile",NULL));
 
 
 	bufferlist sha1_output;
@@ -240,7 +269,9 @@ TEST(cls_stripesha1, getstripesha1_client) {
 	int buflen;
 	uint64_t piece_length;
 
-	ret = cls_client_stripesha1_get(ioctx, "obj", &buf, &buflen, &piece_length, NULL);
+	utime_t now = ceph_clock_now(NULL);
+	ret = cls_client_stripesha1_get(ioctx, "obj", throttle,  &buf, &buflen, &piece_length, NULL);
+	std::cout << "escapsed time:" << ceph_clock_now(NULL) - now << std::endl;
 
 	if (ret < 0) {
 		std::cout << strerror(-ret) << std::endl;
@@ -262,7 +293,21 @@ TEST(cls_stripesha1, getstripesha1_client) {
 	ASSERT_EQ(buflen, sha1_output.length());
 	ASSERT_EQ(0, memcmp(sha1_output.c_str(), buf, buflen));
 
+	/* */
+	{
+	SHA_CTX c;
+	char sha1[SHA_DIGEST_LENGTH];
+	SHA1_Init(&c);
+	SHA1_Update(&c, buf, buflen);
+	SHA1_Final((unsigned char*)sha1, &c);
+
+	bufferlist hashbl;
+	hashbl.append(sha1, SHA_DIGEST_LENGTH);
+	std::cout << "hashinfo:" << bin_to_hex(hashbl) << std::endl;
+	}
+
 	free(buf);
 	rados_ioctx_destroy(ioctx);
 	destroy_one_pool(pool_name, &cluster);
 }
+
