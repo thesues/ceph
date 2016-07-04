@@ -8,6 +8,8 @@ lib_LTLIBRARIES += libcls_stripesha1_client.la
 libcls_stripesha1_client_includedir = $(includedir)/radosstriper
 libcls_stripesha1_client_include_DATA = cls/stripesha1/cls_stripesha1_client.h
 
+libcls_compound_client_la_SOURCES =  cls/compound/cls_compound_client.cc
+lib_LTLIBRARIES += libcls_compound_client.la
 
 libcls_lock_client_la_SOURCES = \
 	cls/lock/cls_lock_client.cc \
@@ -75,6 +77,7 @@ libcls_journal_client_la_SOURCES = \
 	cls/journal/cls_journal_types.cc
 noinst_LTLIBRARIES += libcls_journal_client.la
 DENCODER_DEPS += libcls_journal_client.la
+
 
 noinst_HEADERS += \
 	cls/lock/cls_lock_types.h \

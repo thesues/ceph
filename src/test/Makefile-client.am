@@ -191,6 +191,9 @@ ceph_test_cls_journal_LDADD = \
 ceph_test_cls_journal_CXXFLAGS = $(UNITTEST_CXXFLAGS)
 bin_DEBUGPROGRAMS += ceph_test_cls_journal
 
+
+
+
 ceph_test_rados_api_cmd_SOURCES = test/librados/cmd.cc
 ceph_test_rados_api_cmd_LDADD = \
 	$(LIBCOMMON) $(LIBRADOS) $(CRYPTO_LIBS) \
@@ -642,5 +645,11 @@ ceph_test_cls_stripesha1_CXXFLAGS = $(UNITTEST_CXXFLAGS)
 bin_DEBUGPROGRAMS += ceph_test_cls_stripesha1
 
 
+ceph_test_cls_compound_SOURCES = test/cls_compound/test_cls_compound.cc
+ceph_test_cls_compound_LDADD = \
+        common/obj_bencher.o libcls_compound_client.la $(LIBRADOS) $(LIBRADOSSTRIPER) $(CEPH_GLOBAL) \
+        $(LIBCOMMON) $(CRYPTO_LIBS) $(UNITTEST_LDADD) $(RADOS_TEST_LDADD)
+ceph_test_cls_compound_CXXFLAGS = $(UNITTEST_CXXFLAGS)
+bin_DEBUGPROGRAMS += ceph_test_cls_compound
 
 endif # WITH_RADOS

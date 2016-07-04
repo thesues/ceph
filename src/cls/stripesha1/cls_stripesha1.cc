@@ -75,7 +75,6 @@ static int cls_stripesha1_get(cls_method_context_t hctx, bufferlist *in, bufferl
 		offset += op.stripe_unit;
 	}
 
-	std::cout << output.sha1_map;
 	::encode(output, *out);
 	CLS_LOG(10, "returned map size %d", out->length());
 	return 0;
